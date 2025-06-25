@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
-name: Documentation CI/CD
+name: CI/CD
 
 "on":
   pull_request:
@@ -25,7 +25,7 @@ env:
   EMAIL: jack20220723@gmail.com
 
 jobs:
-  release:
+  documentation:
     name: Test & Release Documentation
     runs-on: ubuntu-latest
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.7"
+          python-version: "3.10"
       - name: Install dependencies
         run: |
           sudo apt-get install liberasurecode-dev
@@ -44,10 +44,11 @@ jobs:
       - name: Build documentation
         run: sphinx-build -b html doc/source doc/build/html
       - name: Deploy documentation to GitHub Pages
-        if: github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: doc/build/html
+          enable_jekyll: false
           user_name: ${{ env.USER }}
           user_email: ${{ env.EMAIL }}
+          cname: openstack-swift.qubitpi.org
