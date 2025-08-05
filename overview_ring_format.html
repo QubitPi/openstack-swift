@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Auditor Watchers &#8212; Swift 0.1.0.dev11004 documentation</title>
+    <title>Ring File Formats &#8212; Swift 0.1.0.dev11004 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=fe63c2af" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5c69cfe2" />
     <script src="_static/documentation_options.js?v=93e99d53"></script>
@@ -13,8 +13,8 @@
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Deployment Guide" href="deployment_guide.html" />
-    <link rel="prev" title="Pluggable On-Disk Back-end APIs" href="development_ondisk_backends.html" />
+    <link rel="next" title="Storage Policies" href="overview_policies.html" />
+    <link rel="prev" title="The Rings" href="overview_ring.html" />
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Bootstrap CSS -->
 <link href="_static/css/bootstrap.min.css" rel="stylesheet">
@@ -53,7 +53,7 @@ ga('send', 'pageview');
 
   </head><body>
 
-<!-- SOURCE_FILE: https://opendev.org/openstack/swift/src/doc/source/development_watchers.rst -->
+<!-- SOURCE_FILE: https://opendev.org/openstack/swift/src/doc/source/overview_ring_format.rst -->
 
 <script>
     (function (window, document) {
@@ -180,15 +180,15 @@ ga('send', 'pageview');
         <div class="col-lg-9 col-md-8 col-sm-8 col-lg-push-3 col-md-push-4 col-sm-push-4 order-4">
 <div class="row docs-title">
   <div class="col-lg-8">
-      <h1>Auditor Watchers</h1>
+      <h1>Ring File Formats</h1>
     
   </div>
   <div class="docs-actions">
     
-    <a href="development_ondisk_backends.html"><i class="fa fa-angle-double-left" data-toggle="tooltip" data-placement="top" title="Previous: Pluggable On-Disk Back-end APIs"></i></a>
+    <a href="overview_ring.html"><i class="fa fa-angle-double-left" data-toggle="tooltip" data-placement="top" title="Previous: The Rings"></i></a>
     
     
-    <a href="deployment_guide.html"><i class="fa fa-angle-double-right" data-toggle="tooltip" data-placement="top" title="Next: Deployment Guide"></i></a>
+    <a href="overview_policies.html"><i class="fa fa-angle-double-right" data-toggle="tooltip" data-placement="top" title="Next: Storage Policies"></i></a>
     
     <a id="pdfLink1" href="" target="_blank" title="Download the manuals as PDF"><i class="fa fa-file-pdf-o" data-toggle="tooltip" data-placement="top" title="Download PDF"></i></a>
     
@@ -200,99 +200,245 @@ ga('send', 'pageview');
             <div class="col-lg-12">
               <div class="docs-body" role="main">
 
-  <section id="auditor-watchers">
-<h1>Auditor Watchers<a class="headerlink" href="#auditor-watchers" title="Link to this heading">¶</a></h1>
-<section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h2>
-<p>The duty of auditors is to guard Swift against corruption in the
-storage media. But because auditors crawl all objects, they can be
-used to program Swift to operate on every object. It is done through
-an API known as “watcher”.</p>
-<p>Watchers do not have any private view into the cluster.
-An operator can write a standalone program that walks the
-directories and performs any desired inspection or maintenance.
-What watcher brings to the table is a framework to do the same
-job easily, under resource restrictions already in place
-for the auditor.</p>
-<p>Operations performed by watchers are often site-specific, or else
-they would be incorporated into Swift already. However, the code in
-the tree provides a reference implementation for convenience.
-It is located in swift/obj/watchers/dark_data.py and implements
-so-called “Dark Data Watcher”.</p>
-<p>Currently, only object auditor supports the watchers.</p>
+  <section id="ring-file-formats">
+<h1>Ring File Formats<a class="headerlink" href="#ring-file-formats" title="Link to this heading">¶</a></h1>
+<p>The ring is the most important data structure in Swift. How this data structure
+been serialized to disk has changed over the years.</p>
+<p>Initially ring files contain three key pieces of information:</p>
+<ul class="simple">
+<li><p>the part_power value (often stored as <code class="docutils literal notranslate"><span class="pre">part_shift</span> <span class="pre">:=</span> <span class="pre">32</span> <span class="pre">-</span> <span class="pre">part_power</span></code>)</p>
+<ul>
+<li><p>which determines how many partitions are in the ring,</p></li>
+</ul>
+</li>
+<li><p>the device list</p>
+<ul>
+<li><p>which includes all the disks participating in the ring, and</p></li>
+</ul>
+</li>
+<li><p>the replica-to-part-to-device table</p>
+<ul>
+<li><p>which has all <code class="docutils literal notranslate"><span class="pre">replica_count</span> <span class="pre">*</span> <span class="pre">(2</span> <span class="pre">**</span> <span class="pre">part_power)</span></code> partition assignments.</p></li>
+</ul>
+</li>
+</ul>
+<p>But the ability to extend the serialization format to add more data structures
+to the ring serialization format has meant a new ring v2 format has been created.</p>
+<p>Ring files have always been gzipped when serialized, though the inner,
+raw format has evolved over the years.</p>
+<section id="ring-v0">
+<h2>Ring v0<a class="headerlink" href="#ring-v0" title="Link to this heading">¶</a></h2>
+<p>Initially, rings were simply pickle dumps of the RingData object. <a class="reference external" href="https://opendev.org/openstack/swift/commit/fc6391ea">With
+Swift 1.3.0</a>, this
+changed to pickling a pure-stdlib data structure, but the core concept
+was the same.</p>
 </section>
-<section id="the-api-class">
-<h2>The API class<a class="headerlink" href="#the-api-class" title="Link to this heading">¶</a></h2>
-<p>The implementation of a watcher is a Python class that may look like this:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">MyWatcher</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-
-  <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">logger</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-      <span class="k">pass</span>
-
-  <span class="k">def</span><span class="w"> </span><span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">audit_type</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-      <span class="k">pass</span>
-
-  <span class="k">def</span><span class="w"> </span><span class="nf">see_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">object_metadata</span><span class="p">,</span> <span class="n">policy_index</span><span class="p">,</span> <span class="n">partition</span><span class="p">,</span>
-                 <span class="n">data_file_path</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-      <span class="k">pass</span>
-
-  <span class="k">def</span><span class="w"> </span><span class="nf">end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-      <span class="k">pass</span>
+<section id="ring-v1">
+<h2>Ring v1<a class="headerlink" href="#ring-v1" title="Link to this heading">¶</a></h2>
+<p>Pickle presented some problems, however. While <a class="reference external" href="https://docs.python.org/3/library/pickle.html">there are security
+concerns</a> around unpickling
+untrusted data, security boundaries are generally drawn such that rings are
+assumed to be trusted. Ultimately, what pushed us to a new format were
+<a class="reference external" href="https://bugs.launchpad.net/swift/+bug/1031954">performance considerations</a>.</p>
+<p>Starting in <a class="reference external" href="https://opendev.org/openstack/swift/commit/f8ce43a2">Swift 1.7.0</a>,
+Swift began using a new format (while still being willing to read the old one).
+The new format starts with some magic so we may identify it as such:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+---------------+-------+</span>
+<span class="o">|</span><span class="s1">&#39;R&#39;</span> <span class="s1">&#39;1&#39;</span> <span class="s1">&#39;N&#39;</span> <span class="s1">&#39;G&#39;</span><span class="o">|</span> <span class="o">&lt;</span><span class="n">vrs</span><span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+---------------+-------+</span>
 </pre></div>
 </div>
-<p>Arguments to watcher methods are passed as keyword arguments,
-and methods are expected to consume new, unknown arguments.</p>
-<p>The method __init__() is used to save configuration and logger
-at the start of the plug-in.</p>
-<p>The method start() is invoked when auditor starts a pass.
-It usually resets counters. The argument <cite>auditor_type</cite> is string of
-<cite>“ALL”</cite> or <cite>“ZBF”</cite>, according to the type of the auditor running
-the watcher. Watchers that talk to the network tend to hang off the
-ALL-type auditor, the lightweight ones are okay with the ZBF-type.</p>
-<p>The method end() is the closing bracket for start(). It is typically
-used to log something, or dump some statistics.</p>
-<p>The method see_object() is called when auditor completed an audit
-of an object. This is where most of the work is done.</p>
-<p>The protocol for see_object() allows it to raise a special exception,
-QuarantienRequested. Auditor catches it and quarantines the object.
-In general, it’s okay for watcher methods to throw exceptions, so
-an author of a watcher plugin does not have to catch them explicitly
-with a try:; they can be just permitted to bubble up naturally.</p>
-</section>
-<section id="loading-the-plugins">
-<h2>Loading the plugins<a class="headerlink" href="#loading-the-plugins" title="Link to this heading">¶</a></h2>
-<p>Swift auditor loads watcher classes from eggs, so it is necessary
-to wrap the class and provide it an entry point:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cat /usr/lib/python3.8/site-p*/mywatcher*egg-info/entry_points.txt
-[mywatcher.mysection]
-mywatcherentry = mywatcher:MyWatcher
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;vrs&gt;</span></code> is a network-order two-byte version number (which is always 1).
+After that, a JSON object is serialized as:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+---------------+-------...---+</span>
+<span class="o">|</span> <span class="o">&lt;</span><span class="n">data</span><span class="o">-</span><span class="n">length</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">data</span> <span class="o">...</span> <span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+---------------+-------...---+</span>
 </pre></div>
 </div>
-<p>Operator tells Swift auditor what plugins to load by adding them
-to object-server.conf in the section [object-auditor]. It is also
-possible to pass parameters, arriving in the argument conf{} of
-method start():</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="nb">object</span><span class="o">-</span><span class="n">auditor</span><span class="p">]</span>
-<span class="n">watchers</span> <span class="o">=</span> <span class="n">mywatcher</span><span class="c1">#mywatcherentry,swift#dark_data</span>
-
-<span class="p">[</span><span class="nb">object</span><span class="o">-</span><span class="n">auditor</span><span class="p">:</span><span class="n">watcher</span><span class="p">:</span><span class="n">mywatcher</span><span class="c1">#mywatcherentry]</span>
-<span class="n">myparam</span><span class="o">=</span><span class="n">testing2020</span>
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;data-length&gt;</span></code> is the network-order four-byte length (in bytes) of
+<code class="docutils literal notranslate"><span class="pre">&lt;data&gt;</span></code>, which is the ASCII-encoded JSON-serialized object. This object
+has at minimum three keys:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">devs</span></code> for the device list</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">part_shift</span></code> (i.e., <code class="docutils literal notranslate"><span class="pre">32</span> <span class="pre">-</span> <span class="pre">part_power</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">replica_count</span></code> for the integer number of part-to-device rows to read</p></li>
+</ul>
+<p>The replica-to-part-to-device table then follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+-------+-------+...+-------+-------+</span>
+<span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|...|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+-------+-------+...+-------+-------+</span>
+<span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|...|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+-------+-------+...+-------+-------+</span>
+<span class="o">|</span>                <span class="o">...</span>                <span class="o">|</span>
+<span class="o">+-------+-------+...+-------+-------+</span>
+<span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">dev</span><span class="o">&gt;</span> <span class="o">|...|</span>
+<span class="o">+-------+-------+...+</span>
 </pre></div>
 </div>
-<p>Do not forget to remove the watcher from auditors when done.
-Although the API itself is very lightweight, it is common for watchers
-to incur a significant performance penalty: they can talk to networked
-services or access additional objects.</p>
+<p>Each <code class="docutils literal notranslate"><span class="pre">&lt;dev&gt;</span></code> is a host-order two-byte index into the <code class="docutils literal notranslate"><span class="pre">devs</span></code> list. Every row
+except the last has exactly <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">**</span> <span class="pre">part_power</span></code> entries; the last row may
+have the same or fewer.</p>
+<p>The metadata object has proven quite versatile: new keys have been added
+to provide additional information while remaining backwards-compatible.
+In order, the following new fields have been added:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">byteorder</span></code> specifies whether the host-order for the
+replica-to-part-to-device table is “big” or “little” endian. Added in
+<a class="reference external" href="https://opendev.org/openstack/swift/commit/1ec6e2bb">Swift 2.12.0</a>,
+this allows rings written on big-endian machines to be read on
+little-endian machines and vice-versa.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">next_part_power</span></code> indicates whether a partition-power increase is in
+progress. Added in <a class="reference external" href="https://opendev.org/openstack/swift/commit/e1140666">Swift 2.15.0</a>,
+this will have one of two values, if present: the ring’s current
+<code class="docutils literal notranslate"><span class="pre">part_power</span></code>, indicating that there may be hardlinks to clean up,
+or <code class="docutils literal notranslate"><span class="pre">part_power</span> <span class="pre">+</span> <span class="pre">1</span></code> indicating that hardlinks may need to be created.
+See <a class="reference internal" href="ring_partpower.html#modify-part-power"><span class="std std-ref">the documentation</span></a>
+for more information.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version</span></code> specifies the version number of the ring-builder that was used
+to write this ring. Added in <a class="reference external" href="https://opendev.org/openstack/swift/commit/6853616a">Swift 2.24.0</a>,
+this allows the comparing of rings from different machines to determine
+which is newer.</p></li>
+</ul>
 </section>
-<section id="dark-data-watcher">
-<h2>Dark Data Watcher<a class="headerlink" href="#dark-data-watcher" title="Link to this heading">¶</a></h2>
-<p>The watcher API is assumed to be under development. Operators who
-need extensions are welcome to report any needs for more arguments
-to see_object().</p>
-<p>The <a class="reference internal" href="audit_watchers.html#dark-data"><span class="std std-ref">Dark Data</span></a> watcher has been provided as an example. If an
-operator wants to create their own watcher, start by copying
-the provided example template <code class="docutils literal notranslate"><span class="pre">swift/obj/watchers/dark_data.py</span></code> and see
-if it is sufficient.</p>
+<section id="ring-v2">
+<h2>Ring v2<a class="headerlink" href="#ring-v2" title="Link to this heading">¶</a></h2>
+<p>The way that v1 rings dealt with fractional replicas made it impossible
+to reliably serialize additional large data structures after the
+replica-to-part-to-device table. The v2 format has been designed to be
+extensable.</p>
+<p>The new format starts with magic similar to v1:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+---------------+-------+</span>
+<span class="o">|</span><span class="s1">&#39;R&#39;</span> <span class="s1">&#39;1&#39;</span> <span class="s1">&#39;N&#39;</span> <span class="s1">&#39;G&#39;</span><span class="o">|</span> <span class="o">&lt;</span><span class="n">vrs</span><span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+---------------+-------+</span>
+</pre></div>
+</div>
+<p>where &lt;vrs&gt; is again a network-order two-byte version number (which is now 2).
+By bumping the version number, we ensure that old versions of Swift refuse to
+read the ring, rather than misinterpret the content.</p>
+<p>After that, a series of BLOBs are serialized, each as:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+-------------------------------+-------...---+</span>
+<span class="o">|</span> <span class="o">&lt;</span><span class="n">data</span><span class="o">-</span><span class="n">length</span><span class="o">&gt;</span>                 <span class="o">|</span> <span class="o">&lt;</span><span class="n">data</span> <span class="o">...</span> <span class="o">&gt;</span> <span class="o">|</span>
+<span class="o">+-------------------------------+-------...---+</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;data-length&gt;</span></code> is the network-order eight-byte length (in bytes) of
+<code class="docutils literal notranslate"><span class="pre">&lt;data&gt;</span></code>. Each BLOB is preceded by a <code class="docutils literal notranslate"><span class="pre">Z_FULL_FLUSH</span></code> to allow it to be
+decompressed without reading the whole file.</p>
+<p>The order of the BLOBs isn’t important, although they do tend to be written
+in the order Swift will read them while loading. This reduces the disk seeks
+necessary to load.</p>
+<p>The final BLOB is an index: a JSON object mapping named sections to an array
+of offsets within the file, like</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="n">section</span><span class="p">:</span> <span class="p">[</span>
+        <span class="n">compressed</span> <span class="n">start</span><span class="p">,</span>
+        <span class="n">uncompressed</span> <span class="n">start</span><span class="p">,</span>
+        <span class="n">compressed</span> <span class="n">end</span><span class="p">,</span>
+        <span class="n">uncompressed</span> <span class="n">end</span><span class="p">,</span>
+        <span class="n">checksum</span> <span class="n">method</span><span class="p">,</span>
+        <span class="n">checksum</span> <span class="n">value</span>
+    <span class="p">],</span>
+    <span class="o">...</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Section names may be arbitrary strings, but the “swift/” prefix is reserved
+for upstream use. The start/end values mark the beginning and ending of the
+section’s BLOB. Note that some end values may be <code class="docutils literal notranslate"><span class="pre">null</span></code> if they were not
+known when the index was written – in particular, this <em>will</em> be true for
+the index itself. The checksum method should be one of <code class="docutils literal notranslate"><span class="pre">&quot;md5&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;sha1&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;sha256&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;sha512&quot;</span></code>; other values will be ignored in anticipation
+of a need to support further algorithms. The checksum value will be the
+hex-encoded digest of the uncompressed section’s bytes. Like end values,
+checksum data may be <code class="docutils literal notranslate"><span class="pre">null</span></code> if not known when the index is written.</p>
+<p>Finally, a “tail” is written:</p>
+<ul class="simple">
+<li><p>the gzip stream is flushed with another <code class="docutils literal notranslate"><span class="pre">Z_FULL_FLUSH</span></code>,</p></li>
+<li><p>the stream is switched to uncompressed,</p></li>
+<li><p>the eight-byte offset of the uncompressed start of the index is written,</p></li>
+<li><p>the gzip stream is flushed with another <code class="docutils literal notranslate"><span class="pre">Z_FULL_FLUSH</span></code>,</p></li>
+<li><p>the eight-byte offset of the compressed start of the index is written,</p></li>
+<li><p>the gzip stream is flushed with another <code class="docutils literal notranslate"><span class="pre">Z_FULL_FLUSH</span></code>, and</p></li>
+<li><p>the gzip stream is closed; this involves:</p>
+<ul>
+<li><p>flushing the underlying deflate stream with <code class="docutils literal notranslate"><span class="pre">Z_FINISH</span></code></p></li>
+<li><p>writing <code class="docutils literal notranslate"><span class="pre">CRC32</span></code> (of the full uncompressed data)</p></li>
+<li><p>writing <code class="docutils literal notranslate"><span class="pre">ISIZE</span></code> (the length of the full uncompressed data <code class="docutils literal notranslate"><span class="pre">mod</span> <span class="pre">2</span> <span class="pre">**</span> <span class="pre">32</span></code>)</p></li>
+</ul>
+</li>
+</ul>
+<p>By switching to uncompressed, we can know exactly how many bytes will be
+written in the tail, so that when reading we can quickly seek to and read the
+index offset, seek to the index start, and read the index. From there we
+can do similar things for any other section.</p>
+<ul class="simple">
+<li><p>Seek to the end of the file</p></li>
+<li><p>Go back 31 bytes in the underlying file; this should leave us at the start of
+the deflate block containing the offset for the compressed start</p></li>
+<li><p>Decompress 8 bytes from the deflate stream to get the location of the
+compressed start of the index BLOB</p></li>
+<li><p>Seek to that location</p></li>
+<li><p>Read/decompress the size of the index BLOB</p></li>
+<li><p>Read/decompress the json serialized index.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This 31 bytes is the deflate block containing the 8 byte location,
+a <code class="docutils literal notranslate"><span class="pre">Z_FULL_FLUSH</span></code> block, the <code class="docutils literal notranslate"><span class="pre">Z_FINISH</span></code> block, and the <code class="docutils literal notranslate"><span class="pre">CRC32</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ISIZE</span></code>. For more information, see <a class="reference external" href="https://rfc-editor.org/rfc/rfc1951">RFC 1951</a> (for the deflate stream)
+and <a class="reference external" href="https://rfc-editor.org/rfc/rfc1952">RFC 1952</a> (for the gzip format).</p>
+</div>
+<p>The currently defined section and section names upstream are as follows:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">swift/index</span></code> - The swift index</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">swift/ring/metadata</span></code> - Ring metadata serialized as json</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">swift/ring/devices</span></code> - Devices json serialized data structure.</p>
+<ul>
+<li><p>This has been seperated from the ring metadata structure in v1 as it
+gets large</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">swift/ring/assignments</span></code> - The ring replica2part2dev_id data structure</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Third-parties may find it useful to add their own sections; however,
+the <code class="docutils literal notranslate"><span class="pre">swift/</span></code> prefix is reserved for future upstream enhancements.</p>
+</div>
+<section id="swift-ring-metadata">
+<h3>swift/ring/metadata<a class="headerlink" href="#swift-ring-metadata" title="Link to this heading">¶</a></h3>
+<p>This BLOB is an ASCII-encoded JSON object full of metadata, similar
+to v1 rings. It has the following required keys:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">part_shift</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dev_id_bytes</span></code> specifies the number of bytes used for each <code class="docutils literal notranslate"><span class="pre">&lt;dev&gt;</span></code> in the
+replica-to-part-to-device table; will be one of 2, 4, or 8</p></li>
+</ul>
+<p>Additionally, there are several optional keys which may be present:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">next_part_power</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">version</span></code></p></li>
+</ul>
+<p>Notice that two keys are no longer present: <code class="docutils literal notranslate"><span class="pre">replica_count</span></code> is no longer
+needed as the size of the replica-to-part-to-device table is explicit, and
+<code class="docutils literal notranslate"><span class="pre">byteorder</span></code> is not needed as all data in v2 rings should be written using
+network-order.</p>
+</section>
+<section id="swift-ring-devices">
+<h3>swift/ring/devices<a class="headerlink" href="#swift-ring-devices" title="Link to this heading">¶</a></h3>
+<p>This BLOB contains a list of swift device dictionarys. And was seperated out
+from the metadata BLOB as this can become a large structure in it’s own right.</p>
+</section>
+<section id="swift-ring-assignments">
+<h3>swift/ring/assignments<a class="headerlink" href="#swift-ring-assignments" title="Link to this heading">¶</a></h3>
+<p>This BLOB is the replica-to-part-to-device table. It’s length will be
+<code class="docutils literal notranslate"><span class="pre">replicas</span> <span class="pre">*</span> <span class="pre">(2</span> <span class="pre">**</span> <span class="pre">part_power)</span> <span class="pre">*</span> <span class="pre">dev_id_bytes</span></code>, where <code class="docutils literal notranslate"><span class="pre">replicas</span></code> is the exact
+(potentially fractional) replica count for the ring. Unlike in v1, each
+<code class="docutils literal notranslate"><span class="pre">&lt;dev&gt;</span></code> is written using network-order.</p>
+<p>Note that this is why we increased the size of <code class="docutils literal notranslate"><span class="pre">&lt;data-length&gt;</span></code> as compared to
+the v1 format – otherwise, we may not be able to represent rings with both
+high <code class="docutils literal notranslate"><span class="pre">replica_count</span></code> and high <code class="docutils literal notranslate"><span class="pre">part_power</span></code>.</p>
+</section>
 </section>
 </section>
 
@@ -302,10 +448,10 @@ if it is sufficient.</p>
           </div>
           <div class="docs-actions">
           
-            <a href="development_ondisk_backends.html"><i class="fa fa-angle-double-left" data-toggle="tooltip" data-placement="top" title="Previous: Pluggable On-Disk Back-end APIs"></i></a>
+            <a href="overview_ring.html"><i class="fa fa-angle-double-left" data-toggle="tooltip" data-placement="top" title="Previous: The Rings"></i></a>
           
           
-            <a href="deployment_guide.html"><i class="fa fa-angle-double-right" data-toggle="tooltip" data-placement="top" title="Next: Deployment Guide"></i></a>
+            <a href="overview_policies.html"><i class="fa fa-angle-double-right" data-toggle="tooltip" data-placement="top" title="Next: Storage Policies"></i></a>
           
           <a id="pdfLink2" href="" target="_blank" title="Download the manuals as PDF"><i class="fa fa-file-pdf-o" data-toggle="tooltip" data-placement="top" title="Download PDF"></i></a>
           
@@ -313,7 +459,7 @@ if it is sufficient.</p>
           
           </div>
           <div class="row docs-byline bottom">
-            <div class="docs-updated">this page last updated: 2021-01-06 16:17:30</div>
+            <div class="docs-updated">this page last updated: 2022-03-17 22:30:40</div>
           </div>
           <div class="row">
             <div class="col-lg-8 col-md-8 col-sm-8 docs-license">
@@ -365,12 +511,17 @@ if it is sufficient.</p>
       <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
 </ul>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="api/object_api_v1_overview.html">Object Storage API overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="overview_architecture.html">Swift Architectural Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="overview_wsgi_management.html">WSGI Server Process Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="overview_ring.html">The Rings</a></li>
-<li class="toctree-l1"><a class="reference internal" href="overview_ring_format.html">Ring File Formats</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Ring File Formats</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#ring-v0">Ring v0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ring-v1">Ring v1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ring-v2">Ring v2</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="overview_policies.html">Storage Policies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="overview_reaper.html">The Account Reaper</a></li>
 <li class="toctree-l1"><a class="reference internal" href="overview_auth.html">The Auth System</a></li>
@@ -400,7 +551,7 @@ if it is sufficient.</p>
 <li class="toctree-l1"><a class="reference internal" href="contributor/contributing.html#community">Community</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributor/review_guidelines.html">Review Guidelines</a></li>
 </ul>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="development_guidelines.html">Development Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="development_saio.html">SAIO (Swift All In One)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="first_contribution_swift.html">First Contribution to Swift</a></li>
@@ -408,13 +559,7 @@ if it is sufficient.</p>
 <li class="toctree-l1"><a class="reference internal" href="development_auth.html">Auth Server and Middleware</a></li>
 <li class="toctree-l1"><a class="reference internal" href="development_middleware.html">Middleware and Metadata</a></li>
 <li class="toctree-l1"><a class="reference internal" href="development_ondisk_backends.html">Pluggable On-Disk Back-end APIs</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Auditor Watchers</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#the-api-class">The API class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#loading-the-plugins">Loading the plugins</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#dark-data-watcher">Dark Data Watcher</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="development_watchers.html">Auditor Watchers</a></li>
 </ul>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="deployment_guide.html">Deployment Guide</a></li>
@@ -466,11 +611,15 @@ if it is sufficient.</p>
     <div class="docs-sidebar-section" id="local-table-of-contents">
       <h4 class="docs-sidebar-section-title">Page Contents</h4>
       <ul>
-<li><a class="reference internal" href="#">Auditor Watchers</a><ul>
-<li><a class="reference internal" href="#overview">Overview</a></li>
-<li><a class="reference internal" href="#the-api-class">The API class</a></li>
-<li><a class="reference internal" href="#loading-the-plugins">Loading the plugins</a></li>
-<li><a class="reference internal" href="#dark-data-watcher">Dark Data Watcher</a></li>
+<li><a class="reference internal" href="#">Ring File Formats</a><ul>
+<li><a class="reference internal" href="#ring-v0">Ring v0</a></li>
+<li><a class="reference internal" href="#ring-v1">Ring v1</a></li>
+<li><a class="reference internal" href="#ring-v2">Ring v2</a><ul>
+<li><a class="reference internal" href="#swift-ring-metadata">swift/ring/metadata</a></li>
+<li><a class="reference internal" href="#swift-ring-devices">swift/ring/devices</a></li>
+<li><a class="reference internal" href="#swift-ring-assignments">swift/ring/assignments</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -566,28 +715,28 @@ if it is sufficient.</p>
      * the source file, without extension.
      */
 
-    var sourceFile = "development_watchers" + ".rst";
+    var sourceFile = "overview_ring_format" + ".rst";
     gitURL = "Source: https://opendev.org/openstack/swift/src/doc/source" + "/" + sourceFile;
 
     /* gitsha, project and bug_tag rely on variables in conf.py */
     var gitSha = "SHA: f6644412667bd0ac1737aaa7675a0e3969982c0e";
     var repositoryName = "openstack/swift";
     var bugProject = "swift";
-    var bugTitle = "Auditor Watchers in Swift";
+    var bugTitle = "Ring File Formats in Swift";
     var fieldTags = "";
     var useStoryboard = "";
 
     /* "last_updated" is the build date and time. It relies on the
        conf.py variable "html_last_updated_fmt", which should include
        year/month/day as well as hours and minutes                   */
-    var buildstring = "Release: 0.1.0.dev11004 on 2021-01-06 16:17:30";
+    var buildstring = "Release: 0.1.0.dev11004 on 2022-03-17 22:30:40";
 
     var fieldComment = encodeURI(buildstring) +
                        lineFeed + encodeURI(gitSha) +
                        lineFeed + encodeURI(gitURL) ;
 
     logABug(bugTitle, bugProject, fieldComment, fieldTags, repositoryName, useStoryboard);
-    var currentSourceFile = "development_watchers";
+    var currentSourceFile = "overview_ring_format";
     var pdfFileName = "doc-swift.pdf";
     pdfLink(currentSourceFile, pdfFileName);
 </script>
